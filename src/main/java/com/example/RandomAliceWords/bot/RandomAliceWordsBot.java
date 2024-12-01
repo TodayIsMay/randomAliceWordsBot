@@ -2,6 +2,7 @@ package com.example.RandomAliceWords.bot;
 
 import com.example.RandomAliceWords.entities.Word;
 import com.example.RandomAliceWords.enums.ButtonNames;
+import com.example.RandomAliceWords.repositories.TranslationsRepository;
 import com.example.RandomAliceWords.repositories.WordRepository;
 import com.example.RandomAliceWords.utils.ReplyKeyboardMaker;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -31,14 +32,17 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     private String word = "";
     private final ReplyKeyboardMaker keyboardMaker = new ReplyKeyboardMaker();
     private final ReplyKeyboardMarkup mainMenuMarkup = keyboardMaker.getMainMenuKeyboard();
-    private WordRepository wordRepository;
+    private final WordRepository wordRepository;
+    private final TranslationsRepository translationsRepository;
 
     public RandomAliceWordsBot(@Value("${bot.token}") String botToken) {
         super(botToken);
         String url = "jdbc:postgresql://db:5432/db?user=aliceBot&password=fx9@CyVXH1";
         var dataSource = new PGSimpleDataSource();
         dataSource.setUrl(url);
-        wordRepository = new WordRepository(new JdbcTemplate(dataSource));
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        translationsRepository = new TranslationsRepository(jdbcTemplate);
+        wordRepository = new WordRepository(jdbcTemplate, translationsRepository);
     }
 
     @Override

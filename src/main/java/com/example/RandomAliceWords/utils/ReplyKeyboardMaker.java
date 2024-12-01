@@ -17,7 +17,7 @@ public class ReplyKeyboardMaker {
         row1.add(new KeyboardButton("Слова по сериям"));
 
         KeyboardRow row2 = new KeyboardRow();
-        row2.add(new KeyboardButton(ButtonNames.ALL_WORDS.getButtonName()));
+        row2.add(new KeyboardButton("Все слова"));
 
         ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup(List.of(row1, row2));
         markup.setResizeKeyboard(true);

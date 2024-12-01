@@ -1,13 +1,15 @@
 package com.example.RandomAliceWords.entities;
 
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public class Word {
+    private Long id;
     private String word;
-    private Set<String> translations;
+    private List<String> translations;
 
-    public Word(String word, Set<String> translations) {
+    public Word(Long id, String word, List<String> translations) {
+        this.id = id;
         this.word = word;
         this.translations = translations;
     }
@@ -20,11 +22,11 @@ public class Word {
         this.word = word;
     }
 
-    public Set<String> getTranslations() {
+    public List<String> getTranslations() {
         return translations;
     }
 
-    public void setTranslations(Set<String> translations) {
+    public void setTranslations(List<String> translations) {
         this.translations = translations;
     }
 
@@ -39,5 +41,10 @@ public class Word {
     @Override
     public int hashCode() {
         return Objects.hash(word, translations);
+    }
+
+    @Override
+    public String toString() {
+        return word + " - " + translations;
     }
 }
