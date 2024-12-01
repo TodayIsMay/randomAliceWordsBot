@@ -24,8 +24,8 @@ public class WordRepository {
     }
 
     public List<Word> getWordsByThemeId(Long themeId) {
-        String sql = "SELECT * FROM themes WHERE theme_id = ?";
-        return jdbcTemplate.query(sql, this::createWord);
+        String sql = "SELECT * FROM words WHERE theme_id = ?";
+        return jdbcTemplate.query(sql, this::createWord, themeId);
     }
 
     private Word createWord(ResultSet rs, int rowNum) throws SQLException {
