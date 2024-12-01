@@ -1,0 +1,27 @@
+version: "3.0"
+services:
+  db:
+    image: postgres:14-alpine
+    build: ./src/main/java/db
+    volumes:
+      - ./db_data/:/var/lib/postgresql/data
+      - ./script.sql:/docker-entrypoint-initdb.d/script.sql
+    environment:
+      PGUSER: aliceBot
+      POSTGRES_DB: db
+      POSTGRES_USER: aliceBot
+      POSTGRES_PASSWORD: fx9@CyVXH1
+    ports:
+      - "5432:5432"
+
+  alice_bot:
+    build: .
+    volumes:
+      - ./src:/opt/alice_bot
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    depends_on:
+      - db
+volumes:
+  postgres_data:
