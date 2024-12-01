@@ -10,18 +10,25 @@ import java.util.List;
 
 public class ReplyKeyboardMaker {
     public ReplyKeyboardMarkup getMainMenuKeyboard() {
-        SendMessage message = new SendMessage();
-
         KeyboardRow row1 = new KeyboardRow();
         row1.add(new KeyboardButton("Случайное слово"));
-        row1.add(new KeyboardButton("Слова по сериям"));
+        row1.add(new KeyboardButton("Слова по темам"));
 
         KeyboardRow row2 = new KeyboardRow();
         row2.add(new KeyboardButton("Все слова"));
 
         ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup(List.of(row1, row2));
         markup.setResizeKeyboard(true);
-        message.setReplyMarkup(markup);
+
+        return markup;
+    }
+
+    public ReplyKeyboardMarkup getThemesMarkup() {
+        KeyboardRow row1 = new KeyboardRow();
+        row1.add(new KeyboardButton("Ben and Holy"));
+
+        ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup(List.of(row1));
+        markup.setResizeKeyboard(true);
 
         return markup;
     }

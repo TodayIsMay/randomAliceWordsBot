@@ -7,11 +7,13 @@ public class Word {
     private Long id;
     private String word;
     private List<String> translations;
+    private Long themeId;
 
-    public Word(Long id, String word, List<String> translations) {
+    public Word(Long id, String word, List<String> translations, Long themeId) {
         this.id = id;
         this.word = word;
         this.translations = translations;
+        this.themeId = themeId;
     }
 
     public String getWord() {
@@ -45,6 +47,6 @@ public class Word {
 
     @Override
     public String toString() {
-        return word + " - " + translations;
+        return word + " - " + translations + "\n";
     }
 }

@@ -2,6 +2,7 @@ package com.example.RandomAliceWords.bot;
 
 import com.example.RandomAliceWords.entities.Word;
 import com.example.RandomAliceWords.enums.ButtonNames;
+import com.example.RandomAliceWords.repositories.ThemesRepository;
 import com.example.RandomAliceWords.repositories.TranslationsRepository;
 import com.example.RandomAliceWords.repositories.WordRepository;
 import com.example.RandomAliceWords.utils.ReplyKeyboardMaker;
@@ -18,7 +19,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMar
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Component
 public class RandomAliceWordsBot extends TelegramLongPollingBot {
@@ -32,8 +32,10 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     private String word = "";
     private final ReplyKeyboardMaker keyboardMaker = new ReplyKeyboardMaker();
     private final ReplyKeyboardMarkup mainMenuMarkup = keyboardMaker.getMainMenuKeyboard();
+    private final ReplyKeyboardMarkup themesChoiceMarkup = keyboardMaker.getThemesMarkup();
     private final WordRepository wordRepository;
     private final TranslationsRepository translationsRepository;
+    private final ThemesRepository themesRepository;
 
     public RandomAliceWordsBot(@Value("${bot.token}") String botToken) {
         super(botToken);
@@ -42,7 +44,8 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
         dataSource.setUrl(url);
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
         translationsRepository = new TranslationsRepository(jdbcTemplate);
-        wordRepository = new WordRepository(jdbcTemplate, translationsRepository);
+        themesRepository = new ThemesRepository(jdbcTemplate);
+        wordRepository = new WordRepository(jdbcTemplate, translationsRepository, themesRepository);
     }
 
     @Override
@@ -65,13 +68,15 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
 
         if (message.equals(ButtonNames.RANDOM_WORD.getButtonName())) {
             nextWord(chatId);
-        } else if (message.equals(ButtonNames.WORDS_BY_EPISODES.getButtonName())) {
-            wordsByEpisodes(chatId);
+        } else if (message.equals(ButtonNames.WORDS_BY_THEMES.getButtonName())) {
+            wordsByThemes(chatId);
         } else if (message.equals(START)) {
             String userName = update.getMessage().getChat().getUserName();
             startCommand(chatId, userName);
         } else if (message.equals(ButtonNames.ALL_WORDS.getButtonName())) {
             getAllWords(chatId);
+        } else if (message.equals("Ben and Holy".toLowerCase(Locale.ROOT))) {
+            getWordsByChosenTheme(chatId, 1L);
         } else {
             unknownCommand(chatId);
         }
@@ -95,8 +100,12 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
         sendMessage(chatId, word, mainMenuMarkup);
     }
 
-    private void wordsByEpisodes(Long chatId) {
-        sendMessage(chatId, "Пока не готово", mainMenuMarkup);
+    private void wordsByThemes(Long chatId) {
+        sendMessage(chatId, "Выбери тему:", themesChoiceMarkup);
+    }
+
+    private void getWordsByChosenTheme(Long chatId, Long themeId) {
+        sendMessage(chatId, wordRepository.getWordsByThemeId(themeId).toString(), mainMenuMarkup);
     }
 
     private void startCommand(Long chatId, String userName) {
