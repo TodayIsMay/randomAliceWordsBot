@@ -3,7 +3,8 @@ package com.example.RandomAliceWords.enums;
 public enum ButtonNames {
     RANDOM_WORD("случайное слово"),
 
-    WORDS_BY_EPISODES("слова по сериям");
+    WORDS_BY_EPISODES("слова по сериям"),
+    ALL_WORDS("все слова");
 
     private final String buttonName;
 

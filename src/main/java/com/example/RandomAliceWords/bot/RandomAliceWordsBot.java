@@ -1,10 +1,14 @@
 package com.example.RandomAliceWords.bot;
 
+import com.example.RandomAliceWords.entities.Word;
 import com.example.RandomAliceWords.enums.ButtonNames;
+import com.example.RandomAliceWords.repositories.WordRepository;
 import com.example.RandomAliceWords.utils.ReplyKeyboardMaker;
+import org.postgresql.ds.PGSimpleDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -27,9 +31,14 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     private String word = "";
     private final ReplyKeyboardMaker keyboardMaker = new ReplyKeyboardMaker();
     private final ReplyKeyboardMarkup mainMenuMarkup = keyboardMaker.getMainMenuKeyboard();
+    private WordRepository wordRepository;
 
     public RandomAliceWordsBot(@Value("${bot.token}") String botToken) {
         super(botToken);
+        String url = "jdbc:postgresql://db:5432/db?user=aliceBot&password=fx9@CyVXH1";
+        var dataSource = new PGSimpleDataSource();
+        dataSource.setUrl(url);
+        wordRepository = new WordRepository(new JdbcTemplate(dataSource));
     }
 
     @Override
@@ -57,9 +66,16 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
         } else if (message.equals(START)) {
             String userName = update.getMessage().getChat().getUserName();
             startCommand(chatId, userName);
+        } else if (message.equals(ButtonNames.ALL_WORDS.getButtonName())) {
+            getAllWords(chatId);
         } else {
             unknownCommand(chatId);
         }
+    }
+
+    private void getAllWords(Long chatId) {
+        List<Word> words = wordRepository.getAllWords();
+        sendMessage(chatId, words.toString(), mainMenuMarkup);
     }
 
     private void nextWord(Long chatId) {
