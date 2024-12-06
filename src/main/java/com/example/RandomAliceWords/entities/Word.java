@@ -1,5 +1,7 @@
 package com.example.RandomAliceWords.entities;
 
+import com.example.RandomAliceWords.enums.ThemeType;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -8,6 +10,8 @@ public class Word {
     private String word;
     private List<String> translations;
     private Long themeId;
+    private ThemeType themeType;
+    private Integer episodeNumber;
 
     public Word(Long id, String word, List<String> translations, Long themeId) {
         this.id = id;
@@ -47,6 +51,6 @@ public class Word {
 
     @Override
     public String toString() {
-        return word + " - " + translations + "\n";
+        return word + " - " + translations;
     }
 }

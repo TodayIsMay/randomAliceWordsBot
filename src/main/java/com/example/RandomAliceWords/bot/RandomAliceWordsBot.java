@@ -32,10 +32,10 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     private String word = "";
     private final ReplyKeyboardMaker keyboardMaker = new ReplyKeyboardMaker();
     private final ReplyKeyboardMarkup mainMenuMarkup = keyboardMaker.getMainMenuKeyboard();
-    private final ReplyKeyboardMarkup themesChoiceMarkup = keyboardMaker.getThemesMarkup();
     private final WordRepository wordRepository;
     private final TranslationsRepository translationsRepository;
     private final ThemesRepository themesRepository;
+    private ReplyKeyboardMarkup themesChoiceMarkup;
 
     public RandomAliceWordsBot(@Value("${bot.token}") String botToken) {
         super(botToken);
@@ -76,6 +76,7 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
         } else if (message.equals(ButtonNames.ALL_WORDS.getButtonName())) {
             getAllWords(chatId);
         } else if (message.equals("Ben and Holy".toLowerCase(Locale.ROOT))) {
+            //showEpisodesButtons(chatId, 1L);
             getWordsByChosenTheme(chatId, 1L);
         } else {
             unknownCommand(chatId);
@@ -101,11 +102,18 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     }
 
     private void wordsByThemes(Long chatId) {
+        themesChoiceMarkup = keyboardMaker.getThemesMarkup(themesRepository);
         sendMessage(chatId, "Выбери тему:", themesChoiceMarkup);
     }
 
     private void getWordsByChosenTheme(Long chatId, Long themeId) {
         sendMessage(chatId, wordRepository.getWordsByThemeId(themeId).toString(), mainMenuMarkup);
+    }
+
+    private void showEpisodesButtons(Long chatId, Long themeId) {
+        themesRepository.getThemeById(themeId);
+        ReplyKeyboardMarkup markup = keyboardMaker.getEpisodesMarkup(2);
+        sendMessage(chatId, "Выбери эпизод:", markup);
     }
 
     private void startCommand(Long chatId, String userName) {

@@ -16,3 +16,11 @@ name character varying (100)
 alter table words add column theme_id integer;
 
 alter table words add constraint FK_WORD_ON_THEME_ID foreign key (theme_id) references themes (id);
+
+alter table words add column "episode_number" integer
+
+alter table words add column "theme_type" integer
+
+alter table themes add column "prefix" character varying (10)
+
+alter table themes add column "type" character varying (50)
