@@ -1,18 +1,24 @@
 package com.example.RandomAliceWords.bot;
 
+import com.example.RandomAliceWords.entities.Word;
+import com.example.RandomAliceWords.enums.ButtonNames;
+import com.example.RandomAliceWords.repositories.ThemesRepository;
+import com.example.RandomAliceWords.repositories.TranslationsRepository;
+import com.example.RandomAliceWords.repositories.WordRepository;
+import com.example.RandomAliceWords.utils.ReplyKeyboardMaker;
+import org.postgresql.ds.PGSimpleDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 @Component
 public class RandomAliceWordsBot extends TelegramLongPollingBot {
@@ -24,9 +30,22 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     private final Map<String, String> vocabulary = new HashMap<>();//слово англ - перевод
     private final Map<String, String> task = new HashMap<>();
     private String word = "";
+    private final ReplyKeyboardMaker keyboardMaker = new ReplyKeyboardMaker();
+    private final ReplyKeyboardMarkup mainMenuMarkup = keyboardMaker.getMainMenuKeyboard();
+    private final WordRepository wordRepository;
+    private final TranslationsRepository translationsRepository;
+    private final ThemesRepository themesRepository;
+    private ReplyKeyboardMarkup themesChoiceMarkup;
 
     public RandomAliceWordsBot(@Value("${bot.token}") String botToken) {
         super(botToken);
+        String url = "jdbc:postgresql://db:5432/db?user=aliceBot&password=fx9@CyVXH1";
+        var dataSource = new PGSimpleDataSource();
+        dataSource.setUrl(url);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        translationsRepository = new TranslationsRepository(jdbcTemplate);
+        themesRepository = new ThemesRepository(jdbcTemplate);
+        wordRepository = new WordRepository(jdbcTemplate, translationsRepository, themesRepository);
     }
 
     @Override
@@ -38,37 +57,63 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
         log.info("Message was: {}", message);
         Long chatId = update.getMessage().getChatId();
         if (message.equals(vocabulary.get(word))) {
-            sendMessage(chatId, "Yes!");
+            sendMessage(chatId, "Yes!", mainMenuMarkup);
             vocabulary.remove(word);
             return;
         } else if (message.equals(task.get(word))) {
-            sendMessage(chatId, "Yes!");
+            sendMessage(chatId, "Yes!", mainMenuMarkup);
             task.remove(word);
             return;
         }
-        switch (message) {
-            case START -> {
-                String userName = update.getMessage().getChat().getUserName();
-                startCommand(chatId, userName);
-            }
-            case NEXT_WORD -> nextWord(chatId);
-            case ALL_WORDS -> showAllWords(chatId);
-            case TASK -> nextTask(chatId);
-            default -> unknownCommand(chatId);
+
+        if (message.equals(ButtonNames.RANDOM_WORD.getButtonName())) {
+            nextWord(chatId);
+        } else if (message.equals(ButtonNames.WORDS_BY_THEMES.getButtonName())) {
+            wordsByThemes(chatId);
+        } else if (message.equals(START)) {
+            String userName = update.getMessage().getChat().getUserName();
+            startCommand(chatId, userName);
+        } else if (message.equals(ButtonNames.ALL_WORDS.getButtonName())) {
+            getAllWords(chatId);
+        } else if (message.equals("Ben and Holy".toLowerCase(Locale.ROOT))) {
+            //showEpisodesButtons(chatId, 1L);
+            getWordsByChosenTheme(chatId, 1L);
+        } else {
+            unknownCommand(chatId);
         }
+    }
+
+    private void getAllWords(Long chatId) {
+        List<Word> words = wordRepository.getAllWords();
+        sendMessage(chatId, words.toString(), mainMenuMarkup);
     }
 
     private void nextWord(Long chatId) {
         log.info("Words in the map: {}", vocabulary.size());
         if (vocabulary.size() == 0) {
-            sendMessage(chatId, "Всё, слова кончились. Можно нажать /start и попробовать начать сначала.");
+            sendMessage(chatId, "Всё, слова кончились. Можно нажать /start и попробовать начать сначала.", mainMenuMarkup);
             return;
         }
         Random random = new Random();
         int index = random.nextInt(vocabulary.size());
         word = vocabulary.keySet().stream().toList().get(index);
         log.info("Word is: {}", word);
-        sendMessage(chatId, word);
+        sendMessage(chatId, word, mainMenuMarkup);
+    }
+
+    private void wordsByThemes(Long chatId) {
+        themesChoiceMarkup = keyboardMaker.getThemesMarkup(themesRepository);
+        sendMessage(chatId, "Выбери тему:", themesChoiceMarkup);
+    }
+
+    private void getWordsByChosenTheme(Long chatId, Long themeId) {
+        sendMessage(chatId, wordRepository.getWordsByThemeId(themeId).toString(), mainMenuMarkup);
+    }
+
+    private void showEpisodesButtons(Long chatId, Long themeId) {
+        themesRepository.getThemeById(themeId);
+        ReplyKeyboardMarkup markup = keyboardMaker.getEpisodesMarkup(2);
+        sendMessage(chatId, "Выбери эпизод:", markup);
     }
 
     private void startCommand(Long chatId, String userName) {
@@ -121,35 +166,36 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
             task.put("Lemonade with a ______ of ice-cream", "dollop");
         }
         var text = "Привет! Здесь можно повторять слова перед занятиями. :)\n Добавлять новые пока нельзя, но мы работаем над этим. \n Просто пиши ответ боту и он скажет, правильно или нет.";
-        sendMessage(chatId, text);
+        sendMessage(chatId, text, mainMenuMarkup);
     }
 
     private void showAllWords(Long chatId) {
         var text = vocabulary.entrySet().toString();
-        sendMessage(chatId, text);
+        sendMessage(chatId, text, mainMenuMarkup);
     }
 
     private void nextTask(Long chatId) {
         log.info("Tasks in the map: {}", task.size());
         if (task.size() == 0) {
-            sendMessage(chatId, "Всё, задания кончились. Можно нажать /start и попробовать начать сначала.");
+            sendMessage(chatId, "Всё, задания кончились. Можно нажать /start и попробовать начать сначала.", mainMenuMarkup);
             return;
         }
         Random random = new Random();
         int index = random.nextInt(task.size());
-        word = task.keySet().stream().toList().get(index);
+        word = new ArrayList<>(task.keySet()).get(index);
         log.info("Word is: {}", word);
-        sendMessage(chatId, word);
+        sendMessage(chatId, word, mainMenuMarkup);
     }
 
     private void unknownCommand(Long chatId) {
         var text = "Ну это какая-то неправильная команда.";
-        sendMessage(chatId, text);
+        sendMessage(chatId, text, mainMenuMarkup);
     }
 
-    private void sendMessage(Long chatId, String text) {
+    private void sendMessage(Long chatId, String text, ReplyKeyboardMarkup replyKeyboard) {
         var chatIdStr = String.valueOf(chatId);
         var sendMessage = new SendMessage(chatIdStr, text);
+        sendMessage.setReplyMarkup(replyKeyboard);
         try {
             execute(sendMessage);
         } catch (TelegramApiException e) {
@@ -161,5 +207,4 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     public String getBotUsername() {
         return "random_alice_words_bot";
     }
-
 }
