@@ -13,11 +13,21 @@ public class Word {
     private ThemeType themeType;
     private Integer episodeNumber;
 
+    @Deprecated
     public Word(Long id, String word, List<String> translations, Long themeId) {
         this.id = id;
         this.word = word;
         this.translations = translations;
         this.themeId = themeId;
+    }
+
+    public Word(Long id, String word, List<String> translations, Long themeId, ThemeType themeType, Integer episodeNumber) {
+        this.id = id;
+        this.word = word;
+        this.translations = translations;
+        this.themeId = themeId;
+        this.themeType = themeType;
+        this.episodeNumber = episodeNumber;
     }
 
     public String getWord() {
@@ -34,6 +44,18 @@ public class Word {
 
     public void setTranslations(List<String> translations) {
         this.translations = translations;
+    }
+
+    public Long getThemeId() {
+        return themeId;
+    }
+
+    public ThemeType getThemeType() {
+        return themeType;
+    }
+
+    public Integer getEpisodeNumber() {
+        return episodeNumber;
     }
 
     @Override

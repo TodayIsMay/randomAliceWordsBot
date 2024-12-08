@@ -25,6 +25,11 @@ public class ThemesRepository {
         return jdbcTemplate.query(sql, this::createTheme);
     }
 
+    public Theme getThemeByName(String name) {
+        String sql = "SELECT * FROM themes WHERE name = ?";
+        return jdbcTemplate.queryForObject(sql, this::createTheme, name);
+    }
+
     private Theme createTheme(ResultSet rs, int rowNum) throws SQLException {
         return new Theme(rs.getLong("id"),
                 rs.getString("name"),
