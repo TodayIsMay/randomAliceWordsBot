@@ -1,6 +1,7 @@
 package com.example.RandomAliceWords.repositories;
 
 import com.example.RandomAliceWords.entities.Word;
+import com.example.RandomAliceWords.enums.ThemeType;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.sql.ResultSet;
@@ -33,6 +34,8 @@ public class WordRepository {
         String name = rs.getString("word");
         List<String> translations = translationsRepository.getTranslationsForWordByWordId(id);
         Long themeId = rs.getLong("theme_id");
-        return new Word(id, name, translations, themeId);
+        ThemeType themeType = ThemeType.valueOf(rs.getString("theme_type"));
+        Integer episodeNumber = rs.getInt("episode_number");
+        return new Word(id, name, translations, themeId, themeType, episodeNumber);
     }
 }
