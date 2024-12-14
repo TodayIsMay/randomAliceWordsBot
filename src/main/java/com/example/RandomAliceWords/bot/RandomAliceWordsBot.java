@@ -8,8 +8,8 @@ import com.example.RandomAliceWords.repositories.EpisodesRepository;
 import com.example.RandomAliceWords.repositories.ThemesRepository;
 import com.example.RandomAliceWords.repositories.TranslationsRepository;
 import com.example.RandomAliceWords.repositories.WordRepository;
+import com.example.RandomAliceWords.utils.InlineKeyboardMaker;
 import com.example.RandomAliceWords.utils.ReplyKeyboardMaker;
-import org.apache.logging.log4j.util.Strings;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +18,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
@@ -32,7 +34,8 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     private static final String NEXT_WORD = "/next_word";
     private static final String ALL_WORDS = "/all_words";
     private static final String TASK = "/task";
-    private final Map<String, String> vocabulary = new HashMap<>();//слово англ - перевод
+    private final Map<String, List<String>> vocabulary = new HashMap<>();//слово англ - переводы
+    private final List<String> mistakes = new ArrayList<>();
     private final Map<String, String> task = new HashMap<>();
     private String word = "";
     private final ReplyKeyboardMaker keyboardMaker = new ReplyKeyboardMaker();
@@ -57,40 +60,96 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        if (!update.hasMessage() || !update.getMessage().hasText()) {
+        if (update.hasCallbackQuery()) {
+            update.getCallbackQuery().getMessage();
+            String data = update.getCallbackQuery().getData();
+            String episodeIdentifier = data.split(",")[0];
+            String[] splitIdentifier = episodeIdentifier.split("_");
+            if (data.split(",")[1].trim().equals("LEARN")) {
+                Long chatId = update.getCallbackQuery().getMessage().getChat().getId();
+                Long themeId = themesRepository.getAllThemes().stream().filter(theme -> theme.getPrefix().equals(splitIdentifier[0].substring(1))).findFirst().get().getId();
+                DeleteMessage deleteMessage = new DeleteMessage(String.valueOf(chatId), update.getCallbackQuery().getMessage().getMessageId());
+                try {
+                    execute(deleteMessage);
+                } catch (TelegramApiException e) {
+                    e.printStackTrace();//TODO: make normal exception
+                }
+                if (fillVocabulary(themeId, Integer.valueOf(splitIdentifier[splitIdentifier.length - 1]))) {
+                    startLearningWordsByEpisode(update.getCallbackQuery().getMessage().getChat().getId());
+                } else {
+                    sendMessage(chatId, "Для этой темы нет слов.");
+                }
+                return;
+            }
+            getWordsByEpisodes(update.getCallbackQuery().getMessage().getChat().getId(), episodeIdentifier, update.getCallbackQuery().getMessage().getMessageId());
             return;
         }
-        String message = update.getMessage().getText().trim().toLowerCase(Locale.ROOT);
-        log.info("Message was: {}", message);
-        Long chatId = update.getMessage().getChatId();
-        if (message.equals(vocabulary.get(word))) {
-            sendMessageWithKeyboard(chatId, "Yes!", mainMenuMarkup);
-            vocabulary.remove(word);
-            return;
-        } else if (message.equals(task.get(word))) {
-            sendMessageWithKeyboard(chatId, "Yes!", mainMenuMarkup);
-            task.remove(word);
-            return;
-        }
-        if (message.equals(ButtonNames.RANDOM_WORD.getButtonName())) {
-            nextWord(chatId);
-        } else if (message.equals(ButtonNames.WORDS_BY_THEMES.getButtonName())) {
-            wordsByThemes(chatId);
-        } else if (message.equals(START)) {
-            String userName = update.getMessage().getChat().getUserName();
-            startCommand(chatId, userName);
-        } else if (message.equals(ButtonNames.ALL_WORDS.getButtonName())) {
-            getAllWords(chatId);
-        } else if (message.equals("Ben and Holy".toLowerCase(Locale.ROOT))) {
-            showEpisodeChoosingMessage(chatId, "Ben and Holy");
-        } else if (message.contains("ep")) {
-            getWordsByEpisodes(chatId, message);
-        } else {
-            unknownCommand(chatId);
+        if (update.hasMessage() && update.getMessage().hasText()) {
+            String message = update.getMessage().getText().trim().toLowerCase(Locale.ROOT);
+            log.info("Message was: {}", message);
+            Long chatId = update.getMessage().getChatId();
+
+            if (message.equals(ButtonNames.RANDOM_WORD.getButtonName())) {
+                nextWord(chatId);
+            } else if (message.equals(ButtonNames.WORDS_BY_THEMES.getButtonName())) {
+                wordsByThemes(chatId);
+            } else if (message.equals(START)) {
+                String userName = update.getMessage().getChat().getUserName();
+                startCommand(chatId, userName);
+            } else if (message.equals(ButtonNames.ALL_WORDS.getButtonName())) {
+                getAllWords(chatId);
+            } else if (message.equals("Ben and Holy".toLowerCase(Locale.ROOT))) {
+                showEpisodeChoosingMessage(chatId, "Ben and Holy");
+            } else if (message.contains("ep")) {
+                sendMessageWithInlineKeyboard(chatId, "Что будем делать?", InlineKeyboardMaker.getLearnReadInlineMarkup(message));
+            } else if (!vocabulary.isEmpty()) {
+                if (vocabulary.get(word).contains(message)) {
+                    vocabulary.remove(word);
+                    if (vocabulary.isEmpty()) {
+                        String reply = "Yes! \nСлова кончились, ошибки были в: " + mistakes;
+                        sendMessageWithKeyboard(chatId, reply, mainMenuMarkup);
+                    } else {
+                        sendMessage(chatId, "Yes!");
+                        startLearningWordsByEpisode(chatId);
+                    }
+                } else if (message.equals(task.get(word))) {
+                    sendMessageWithKeyboard(chatId, "Yes!", mainMenuMarkup);
+                    task.remove(word);
+                } else {
+                    StringBuilder reply = new StringBuilder("No. :(");
+                    vocabulary.remove(word);
+                    mistakes.add(word);
+                    if (vocabulary.isEmpty()) {
+                        reply.append("\n Слова кончились, ошибки были в: ").append(mistakes);
+                        sendMessageWithKeyboard(chatId, reply.toString(), mainMenuMarkup);
+                        return;
+                    }
+                    sendMessage(chatId, reply.toString());
+                    startLearningWordsByEpisode(chatId);
+                }
+            } else {
+                unknownCommand(chatId);
+            }
         }
     }
 
-    private void getWordsByEpisodes(Long chatId, String message) {
+    private boolean fillVocabulary(Long themeId, Integer episodeId) {
+        List<Word> words = wordRepository.getWordsByThemeId(themeId)
+                .stream()
+                .filter(w -> w.getEpisodeNumber().equals(episodeId))
+                .collect(Collectors.toList());
+        for (Word word : words) {
+            vocabulary.put(word.getWord(), word.getTranslations());
+        }
+        return !vocabulary.isEmpty();
+    }
+
+    private void startLearningWordsByEpisode(Long chatId) {
+        word = vocabulary.keySet().iterator().next();
+        sendMessage(chatId, word);
+    }
+
+    private void getWordsByEpisodes(Long chatId, String message, Integer messageId) {
         String[] split = message.split("_");
         String themePrefix = new StringBuilder(split[0]).substring(1);
         Theme theme = themesRepository.getAllThemes()
@@ -103,6 +162,12 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
                 .stream()
                 .filter(w -> w.getEpisodeNumber().equals(episodeNumber))
                 .collect(Collectors.toList());
+        DeleteMessage deleteMessage = new DeleteMessage(String.valueOf(chatId), messageId);
+        try {
+            execute(deleteMessage);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();//TODO: make normal exception
+        }
         sendMessageWithKeyboard(chatId, words.toString(), mainMenuMarkup);
     }
 
@@ -152,47 +217,6 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     }
 
     private void startCommand(Long chatId, String userName) {
-//        vocabulary.put("try", "пытаться");
-//        vocabulary.put("enjoy", "наслаждаться");
-//        vocabulary.put("suffer", "страдать");
-//        vocabulary.put("again", "опять");
-//        vocabulary.put("expensive", "дорогой");
-//        vocabulary.put("egg", "яйцо");
-//        vocabulary.put("later", "позже");
-//        vocabulary.put("tree", "дерево");
-//        vocabulary.put("several", "несколько");
-//        vocabulary.put("help", "помогать");
-//        vocabulary.put("lesson", "урок");
-//        vocabulary.put("hope", "надеяться");
-//        vocabulary.put("new", "новый");
-//        vocabulary.put("tell", "говорить");
-//        vocabulary.put("sound", "звук");
-//        vocabulary.put("by the way", "кстати");
-//        vocabulary.put("kind", "вид");
-//        vocabulary.put("come up", "приближаться");
-//        vocabulary.put("So long!", "прощай");
-//        vocabulary.put("Good luck!", "удачи");
-//        vocabulary.put("feed", "кормить");
-//        vocabulary.put("too", "слишком");
-//        vocabulary.put("familiar", "знакомый");
-//        vocabulary.put("wait", "ждать");
-//        vocabulary.put("float", "плавать");
-//        vocabulary.put("find out", "выяснять");
-//        vocabulary.put("yell", "кричать");
-//        vocabulary.put("excited", "взволнован");
-//        vocabulary.put("attention", "внимание");
-//        vocabulary.put("neighbourhood", "окрестности");
-        vocabulary.put("adventure", "приключение");
-        vocabulary.put("royal", "королевский");
-        vocabulary.put("thistle", "чертополох");
-        vocabulary.put("fairy", "фея");
-        vocabulary.put("impressive", "впечатляющий");
-        vocabulary.put("rotten", "гнилой");
-        vocabulary.put("give it a miss", "пропустить");
-        vocabulary.put("plenty of something", "очень много");
-        vocabulary.put("feel like something", "хотеть");
-        vocabulary.put("dollop", "порция");
-
         {
             task.put("Today's _________ starts at the little castle", "adventure");
             task.put("Maybe we should ____ the magic jelly _ ____ this year", "give a miss");
@@ -228,6 +252,17 @@ public class RandomAliceWordsBot extends TelegramLongPollingBot {
     }
 
     private void sendMessageWithKeyboard(Long chatId, String text, ReplyKeyboardMarkup replyKeyboard) {
+        var chatIdStr = String.valueOf(chatId);
+        var sendMessage = new SendMessage(chatIdStr, text);
+        sendMessage.setReplyMarkup(replyKeyboard);
+        try {
+            execute(sendMessage);
+        } catch (TelegramApiException e) {
+            log.error("Sending message error");
+        }
+    }
+
+    private void sendMessageWithInlineKeyboard(Long chatId, String text, InlineKeyboardMarkup replyKeyboard) {
         var chatIdStr = String.valueOf(chatId);
         var sendMessage = new SendMessage(chatIdStr, text);
         sendMessage.setReplyMarkup(replyKeyboard);
