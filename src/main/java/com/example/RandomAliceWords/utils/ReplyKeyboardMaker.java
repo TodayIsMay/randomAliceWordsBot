@@ -38,6 +38,7 @@ public class ReplyKeyboardMaker {
 
         ReplyKeyboardMarkup markup = new ReplyKeyboardMarkup(rows);
         markup.setResizeKeyboard(true);
+        markup.setOneTimeKeyboard(true);
 
         return markup;
     }
